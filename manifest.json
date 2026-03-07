@@ -1,0 +1,17 @@
+{
+  "name": "أذكاري",
+  "short_name": "أذكاري",
+  "description": "مواقيت الصلاة، القرآن، التسبيح، Focus Detox",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#07122b",
+  "theme_color": "#07122b",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%2307122b' rx='20'/><text y='.9em' font-size='75' x='50%' text-anchor='middle'>🕌</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
