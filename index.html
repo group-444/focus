@@ -14,7 +14,15 @@
 <link rel="manifest" href="manifest.json">
 <title>أذكاري</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Load Chart.js async — page renders fine without it
+(function(){
+  var s=document.createElement('script');
+  s.src='https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+  s.async=true;
+  document.head.appendChild(s);
+})();
+</script>
 
 <style>
 :root{
@@ -387,693 +395,406 @@ body{
 <div class="milestone-toast" id="milestoneToast"></div>
 
 <script>
-/* ════════════════════════════════════════
-   SKY CANVAS — Prayer-Time Driven v3
-════════════════════════════════════════ */
 (function(){
-  const cv=document.createElement("canvas");
-  cv.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;pointer-events:none;";
-  document.body.insertBefore(cv,document.body.firstChild);
-  const cx=cv.getContext("2d");
-  let W,H;
+"use strict";
 
-  /* Stars */
-  let stars=[];
-  function genStars(){
-    stars=[];
-    const n=Math.min(350,Math.floor(W*H/3000));
-    for(let i=0;i<n;i++){
-      const big=Math.random()>.85;
-      stars.push({
-        x:Math.random()*W, y:Math.random()*H*.80,
-        r:big?Math.random()*.9+.9:Math.random()*.45+.15,
-        op:big?Math.random()*.4+.6:Math.random()*.5+.3,
-        ts:Math.random()*.018+.004, to:Math.random()*Math.PI*2,
-        col:Math.random()>.92?[220,220,255]:Math.random()>.88?[255,240,200]:[255,255,255]
-      });
+/* ═══════════════════════════════════════
+   SKY CANVAS
+═══════════════════════════════════════ */
+(function initSky(){
+  try{
+    var cv=document.createElement("canvas");
+    cv.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;pointer-events:none;";
+    document.body.insertBefore(cv,document.body.firstChild);
+    var cx=cv.getContext("2d"),W,H,tick=0;
+    var stars=[],shs=[],lastS=0,clouds=[];
+    function genStars(){stars=[];var n=Math.min(350,Math.floor(W*H/3000));for(var i=0;i<n;i++){var big=Math.random()>.85;stars.push({x:Math.random()*W,y:Math.random()*H*.80,r:big?Math.random()*.9+.9:Math.random()*.45+.15,op:big?Math.random()*.4+.6:Math.random()*.5+.3,ts:Math.random()*.018+.004,to:Math.random()*Math.PI*2,col:Math.random()>.92?[220,220,255]:Math.random()>.88?[255,240,200]:[255,255,255]});}}
+    function maybeShoot(now){if(now-lastS<3200)return;if(Math.random()>.006)return;lastS=now;shs.push({x:Math.random()*W*.75,y:Math.random()*H*.33,len:100+Math.random()*130,spd:9+Math.random()*7,ang:Math.PI/4+(Math.random()-.5)*.4,life:1,dec:.021+Math.random()*.009});}
+    function tickShs(){shs=shs.filter(function(s){return s.life>0;});shs.forEach(function(s){s.x+=Math.cos(s.ang)*s.spd;s.y+=Math.sin(s.ang)*s.spd;s.life-=s.dec;});}
+    function drawShs(){shs.forEach(function(s){var g=cx.createLinearGradient(s.x,s.y,s.x-Math.cos(s.ang)*s.len,s.y-Math.sin(s.ang)*s.len);g.addColorStop(0,"rgba(255,255,255,"+s.life*.95+")");g.addColorStop(.4,"rgba(200,220,255,"+s.life*.4+")");g.addColorStop(1,"rgba(255,255,255,0)");cx.save();cx.strokeStyle=g;cx.lineWidth=1.8;cx.beginPath();cx.moveTo(s.x,s.y);cx.lineTo(s.x-Math.cos(s.ang)*s.len,s.y-Math.sin(s.ang)*s.len);cx.stroke();cx.restore();});}
+    function mkCloud(x){return{x:x,y:H*(.06+Math.random()*.30),puffs:3+Math.floor(Math.random()*3),bR:36+Math.random()*52,spd:.06+Math.random()*.13,op:.10+Math.random()*.17,spread:.5+Math.random()*.38};}
+    function genClouds(){clouds=[];for(var i=0;i<6+Math.floor(Math.random()*3);i++)clouds.push(mkCloud(Math.random()*W*1.5));}
+    function tickClouds(){clouds.forEach(function(c){c.x-=c.spd;if(c.x+c.bR*4<0)Object.assign(c,mkCloud(W+c.bR*3));});}
+    function drawCloud(c,r,g,b){cx.save();cx.globalAlpha=c.op;for(var i=0;i<c.puffs;i++){var ox=(i-(c.puffs-1)/2)*c.bR*c.spread,oy=Math.sin(i*1.2)*c.bR*.22,pr=c.bR*(.7+Math.sin(i*2.5)*.25),gr=cx.createRadialGradient(c.x+ox,c.y+oy,0,c.x+ox,c.y+oy,pr);gr.addColorStop(0,"rgba("+r+","+g+","+b+",.9)");gr.addColorStop(.6,"rgba("+r+","+g+","+b+",.5)");gr.addColorStop(1,"rgba("+r+","+g+","+b+",0)");cx.fillStyle=gr;cx.beginPath();cx.ellipse(c.x+ox,c.y+oy,pr,pr*.64,0,0,Math.PI*2);cx.fill();}cx.restore();}
+    function drawMoon(a){if(a<=0)return;var mx=W*.80,my=H*.13;cx.save();cx.globalAlpha=a;var halo=cx.createRadialGradient(mx,my,0,mx,my,115);halo.addColorStop(0,"rgba(200,210,255,.14)");halo.addColorStop(.5,"rgba(180,195,255,.05)");halo.addColorStop(1,"rgba(0,0,0,0)");cx.fillStyle=halo;cx.beginPath();cx.arc(mx,my,115,0,Math.PI*2);cx.fill();var mg=cx.createRadialGradient(mx-9,my-9,2,mx,my,35);mg.addColorStop(0,"#fff9e8");mg.addColorStop(.5,"#ede8c8");mg.addColorStop(1,"#c8c090");cx.fillStyle=mg;cx.beginPath();cx.arc(mx,my,35,0,Math.PI*2);cx.fill();cx.fillStyle="rgba(2,1,18,"+(a*.96)+")";cx.beginPath();cx.arc(mx+15,my-5,29,0,Math.PI*2);cx.fill();cx.restore();}
+    function drawSun(x,y,r,core,glow,ga){var sc=cx.createRadialGradient(x,y,r,x,y,r*7);sc.addColorStop(0,"rgba("+glow+","+ga*.28+")");sc.addColorStop(.5,"rgba("+glow+","+ga*.10+")");sc.addColorStop(1,"rgba(0,0,0,0)");cx.fillStyle=sc;cx.beginPath();cx.arc(x,y,r*7,0,Math.PI*2);cx.fill();var bl=cx.createRadialGradient(x,y,0,x,y,r*2.6);bl.addColorStop(0,"rgba("+core+",1)");bl.addColorStop(.45,"rgba("+glow+",.55)");bl.addColorStop(1,"rgba(0,0,0,0)");cx.fillStyle=bl;cx.beginPath();cx.arc(x,y,r*2.6,0,Math.PI*2);cx.fill();cx.fillStyle="rgb("+core+")";cx.beginPath();cx.arc(x,y,r,0,Math.PI*2);cx.fill();}
+    function drawHorizon(r,g,b,s){if(s<=0)return;var grd=cx.createRadialGradient(W/2,H,0,W/2,H,H*.72);grd.addColorStop(0,"rgba("+r+","+g+","+b+","+s+")");grd.addColorStop(1,"rgba(0,0,0,0)");cx.fillStyle=grd;cx.fillRect(0,0,W,H);}
+    var P={night:{t:[2,1,18],m:[6,12,48],b:[10,22,65]},dawn_s:{t:[18,10,65],m:[90,40,100],b:[210,100,60]},dawn_e:{t:[38,65,130],m:[220,130,80],b:[255,195,110]},day_am:{t:[48,96,178],m:[95,155,218],b:[175,210,242]},day_md:{t:[28,75,162],m:[75,140,208],b:[155,202,235]},day_pm:{t:[38,88,168],m:[98,154,212],b:[188,218,242]},sun_s:{t:[48,58,128],m:[205,88,45],b:[255,165,55]},sun_e:{t:[14,14,48],m:[100,33,58],b:[195,70,28]}};
+    function lc(a,b,t){return a.map(function(v,i){return Math.round(v+(b[i]-v)*t);});}
+    function getColors(ph,t){if(ph==="night")return P.night;if(ph==="dawn")return{t:lc(P.dawn_s.t,P.dawn_e.t,t),m:lc(P.dawn_s.m,P.dawn_e.m,t),b:lc(P.dawn_s.b,P.dawn_e.b,t)};if(ph==="day"){var a=t<.5?P.day_am:P.day_md,bb=t<.5?P.day_md:P.day_pm,tt=t<.5?t*2:(t-.5)*2;return{t:lc(a.t,bb.t,tt),m:lc(a.m,bb.m,tt),b:lc(a.b,bb.b,tt)};}return{t:lc(P.sun_s.t,P.sun_e.t,t),m:lc(P.sun_s.m,P.sun_e.m,t),b:lc(P.sun_s.b,P.sun_e.b,t)};}
+    function drawBG(c){var g=cx.createLinearGradient(0,0,0,H);g.addColorStop(0,"rgb("+c.t+")");g.addColorStop(.42,"rgb("+c.m+")");g.addColorStop(1,"rgb("+c.b+")");cx.fillStyle=g;cx.fillRect(0,0,W,H);}
+    function toMin(s){var parts=s.split(":");return parseInt(parts[0])*60+parseInt(parts[1]);}
+    window._setPrayerMinutes=function(t){window._pm={fajr:toMin(t.Fajr),sunrise:t.Sunrise?toMin(t.Sunrise):toMin(t.Fajr)+65,maghrib:toMin(t.Maghrib),isha:toMin(t.Isha)};};
+    function getPhase(){var now=new Date(),nm=now.getHours()*60+now.getMinutes()+now.getSeconds()/60;var p=window._pm||{fajr:300,sunrise:375,maghrib:1095,isha:1185};if(nm>=p.isha||nm<p.fajr){var dur=(1440-p.isha)+p.fajr,el=nm>=p.isha?nm-p.isha:(1440-p.isha)+nm;return{ph:"night",t:Math.min(el/dur,1)};}if(nm>=p.fajr&&nm<p.sunrise)return{ph:"dawn",t:(nm-p.fajr)/(p.sunrise-p.fajr)};if(nm>=p.maghrib&&nm<p.isha)return{ph:"sunset",t:(nm-p.maghrib)/(p.isha-p.maghrib)};return{ph:"day",t:(nm-p.sunrise)/(p.maghrib-p.sunrise)};}
+    function draw(){
+      tick++;cx.clearRect(0,0,W,H);
+      var phase=getPhase(),ph=phase.ph,t=phase.t;
+      drawBG(getColors(ph,t));
+      if(ph==="night"){stars.forEach(function(s){var tw=.5+.5*Math.sin(tick*s.ts+s.to);cx.globalAlpha=s.op*tw;cx.fillStyle="rgb("+s.col+")";cx.beginPath();cx.arc(s.x,s.y,s.r,0,Math.PI*2);cx.fill();});cx.globalAlpha=1;drawMoon(1);maybeShoot(tick*16.67);tickShs();drawShs();}
+      if(ph==="dawn"){var sa=Math.max(0,1-t*1.4);stars.forEach(function(s){var tw=.5+.5*Math.sin(tick*s.ts+s.to);cx.globalAlpha=s.op*tw*sa;cx.fillStyle="rgb("+s.col+")";cx.beginPath();cx.arc(s.x,s.y,s.r,0,Math.PI*2);cx.fill();});cx.globalAlpha=1;drawMoon(Math.max(0,.55-t*1.2));drawHorizon(255,150,70,t*.65);if(t>.25)drawSun(W*.44,H*(.98-t*.72),22,"255,225,140","255,165,55",t*.72);tickClouds();clouds.forEach(function(c){drawCloud(c,255,Math.round(145+t*70),Math.round(95+t*75));});if(t<.4){maybeShoot(tick*16.67);tickShs();drawShs();}}
+      if(ph==="day"){var ang=Math.PI+t*Math.PI,sx=W*.5+Math.cos(ang)*W*.38,sy=Math.max(H*.06,Math.min(H*.82,H*.5+Math.sin(ang)*H*.55));drawSun(sx,sy,36,"255,250,210","255,235,130",.45);tickClouds();clouds.forEach(function(c){drawCloud(c,248,252,255);});}
+      if(ph==="sunset"){drawHorizon(255,125,38,.44+t*.32);var ssx=W*.5+(1-t)*W*.12,ssy=H*(.22+t*.68);if(ssy<H*.93)drawSun(ssx,ssy,34,"255,185,65","255,105,30",.55);tickClouds();clouds.forEach(function(c){var cr=Math.round(225+(1-t)*28),cg=Math.round(98-t*65),cb=Math.round(55+t*90);drawCloud(c,cr,cg,cb);});if(t>.65){var sa2=(t-.65)/.35*.45;stars.forEach(function(s){var tw=.5+.5*Math.sin(tick*s.ts+s.to);cx.globalAlpha=s.op*tw*sa2;cx.fillStyle="rgb("+s.col+")";cx.beginPath();cx.arc(s.x,s.y,s.r,0,Math.PI*2);cx.fill();});}}
+      cx.globalAlpha=1;
     }
-  }
-
-  /* Shooting stars */
-  let shs=[],lastS=0;
-  function maybeShoot(now){
-    if(now-lastS<3200)return;
-    if(Math.random()>.006)return;
-    lastS=now;
-    shs.push({x:Math.random()*W*.75,y:Math.random()*H*.33,
-      len:100+Math.random()*130,spd:9+Math.random()*7,
-      ang:Math.PI/4+(Math.random()-.5)*.4,
-      life:1,dec:.021+Math.random()*.009});
-  }
-  function tickShs(){
-    shs=shs.filter(s=>s.life>0);
-    shs.forEach(s=>{s.x+=Math.cos(s.ang)*s.spd;s.y+=Math.sin(s.ang)*s.spd;s.life-=s.dec;});
-  }
-  function drawShs(){
-    shs.forEach(s=>{
-      const g=cx.createLinearGradient(s.x,s.y,s.x-Math.cos(s.ang)*s.len,s.y-Math.sin(s.ang)*s.len);
-      g.addColorStop(0,`rgba(255,255,255,${s.life*.95})`);
-      g.addColorStop(.4,`rgba(200,220,255,${s.life*.4})`);
-      g.addColorStop(1,"rgba(255,255,255,0)");
-      cx.save();cx.strokeStyle=g;cx.lineWidth=1.8;
-      cx.beginPath();cx.moveTo(s.x,s.y);cx.lineTo(s.x-Math.cos(s.ang)*s.len,s.y-Math.sin(s.ang)*s.len);
-      cx.stroke();cx.restore();
-    });
-  }
-
-  /* Clouds */
-  let clouds=[];
-  function mkCloud(x){
-    return{x,y:H*(.06+Math.random()*.30),puffs:3+Math.floor(Math.random()*3),
-      bR:36+Math.random()*52,spd:.06+Math.random()*.13,
-      op:.10+Math.random()*.17,spread:.5+Math.random()*.38};
-  }
-  function genClouds(){
-    clouds=[];
-    for(let i=0;i<6+Math.floor(Math.random()*3);i++) clouds.push(mkCloud(Math.random()*W*1.5));
-  }
-  function tickClouds(){
-    clouds.forEach(c=>{
-      c.x-=c.spd;
-      if(c.x+c.bR*4<0) Object.assign(c,mkCloud(W+c.bR*3));
-    });
-  }
-  function drawCloud(c,r,g,b){
-    cx.save();cx.globalAlpha=c.op;
-    for(let i=0;i<c.puffs;i++){
-      const ox=(i-(c.puffs-1)/2)*c.bR*c.spread;
-      const oy=Math.sin(i*1.2)*c.bR*.22;
-      const pr=c.bR*(.7+Math.sin(i*2.5)*.25);
-      const gr=cx.createRadialGradient(c.x+ox,c.y+oy,0,c.x+ox,c.y+oy,pr);
-      gr.addColorStop(0,`rgba(${r},${g},${b},.9)`);
-      gr.addColorStop(.6,`rgba(${r},${g},${b},.5)`);
-      gr.addColorStop(1,`rgba(${r},${g},${b},0)`);
-      cx.fillStyle=gr;cx.beginPath();cx.ellipse(c.x+ox,c.y+oy,pr,pr*.64,0,0,Math.PI*2);cx.fill();
-    }
-    cx.restore();
-  }
-
-  /* Moon */
-  function drawMoon(a){
-    if(a<=0)return;
-    const mx=W*.80,my=H*.13;
-    cx.save();cx.globalAlpha=a;
-    const halo=cx.createRadialGradient(mx,my,0,mx,my,115);
-    halo.addColorStop(0,"rgba(200,210,255,.14)");
-    halo.addColorStop(.5,"rgba(180,195,255,.05)");
-    halo.addColorStop(1,"rgba(0,0,0,0)");
-    cx.fillStyle=halo;cx.beginPath();cx.arc(mx,my,115,0,Math.PI*2);cx.fill();
-    const mg=cx.createRadialGradient(mx-9,my-9,2,mx,my,35);
-    mg.addColorStop(0,"#fff9e8");mg.addColorStop(.5,"#ede8c8");mg.addColorStop(1,"#c8c090");
-    cx.fillStyle=mg;cx.beginPath();cx.arc(mx,my,35,0,Math.PI*2);cx.fill();
-    cx.fillStyle=`rgba(2,1,18,${a*.96})`;cx.beginPath();cx.arc(mx+15,my-5,29,0,Math.PI*2);cx.fill();
-    [[mx-12,my+9,3.5],[mx+4,my-14,2.2],[mx-18,my-4,2.5]].forEach(([cx2,cy,cr])=>{
-      cx.fillStyle="rgba(140,130,100,.22)";cx.beginPath();cx.arc(cx2,cy,cr,0,Math.PI*2);cx.fill();
-    });
-    cx.restore();
-  }
-
-  /* Sun */
-  function drawSun(x,y,r,core,glow,ga){
-    const sc=cx.createRadialGradient(x,y,r,x,y,r*7);
-    sc.addColorStop(0,`rgba(${glow},${ga*.28})`);
-    sc.addColorStop(.5,`rgba(${glow},${ga*.10})`);
-    sc.addColorStop(1,"rgba(0,0,0,0)");
-    cx.fillStyle=sc;cx.beginPath();cx.arc(x,y,r*7,0,Math.PI*2);cx.fill();
-    const bl=cx.createRadialGradient(x,y,0,x,y,r*2.6);
-    bl.addColorStop(0,`rgba(${core},1)`);
-    bl.addColorStop(.45,`rgba(${glow},.55)`);
-    bl.addColorStop(1,"rgba(0,0,0,0)");
-    cx.fillStyle=bl;cx.beginPath();cx.arc(x,y,r*2.6,0,Math.PI*2);cx.fill();
-    cx.fillStyle=`rgb(${core})`;cx.beginPath();cx.arc(x,y,r,0,Math.PI*2);cx.fill();
-  }
-
-  function drawHorizon(r,g,b,s){
-    if(s<=0)return;
-    const grd=cx.createRadialGradient(W/2,H,0,W/2,H,H*.72);
-    grd.addColorStop(0,`rgba(${r},${g},${b},${s})`);
-    grd.addColorStop(1,"rgba(0,0,0,0)");
-    cx.fillStyle=grd;cx.fillRect(0,0,W,H);
-  }
-
-  /* Palettes */
-  const P={
-    night:  {t:[2,1,18],   m:[6,12,48],   b:[10,22,65]},
-    dawn_s: {t:[18,10,65], m:[90,40,100], b:[210,100,60]},
-    dawn_e: {t:[38,65,130],m:[220,130,80],b:[255,195,110]},
-    day_am: {t:[48,96,178],m:[95,155,218],b:[175,210,242]},
-    day_md: {t:[28,75,162],m:[75,140,208],b:[155,202,235]},
-    day_pm: {t:[38,88,168],m:[98,154,212],b:[188,218,242]},
-    sun_s:  {t:[48,58,128],m:[205,88,45], b:[255,165,55]},
-    sun_e:  {t:[14,14,48], m:[100,33,58], b:[195,70,28]}
-  };
-  function lc(a,b,t){return a.map((v,i)=>Math.round(v+(b[i]-v)*t))}
-  function getColors(ph,t){
-    if(ph==="night")return P.night;
-    if(ph==="dawn")return{t:lc(P.dawn_s.t,P.dawn_e.t,t),m:lc(P.dawn_s.m,P.dawn_e.m,t),b:lc(P.dawn_s.b,P.dawn_e.b,t)};
-    if(ph==="day"){const a=t<.5?P.day_am:P.day_md,bb=t<.5?P.day_md:P.day_pm,tt=t<.5?t*2:(t-.5)*2;return{t:lc(a.t,bb.t,tt),m:lc(a.m,bb.m,tt),b:lc(a.b,bb.b,tt)};}
-    return{t:lc(P.sun_s.t,P.sun_e.t,t),m:lc(P.sun_s.m,P.sun_e.m,t),b:lc(P.sun_s.b,P.sun_e.b,t)};
-  }
-  function drawBG(c){
-    const g=cx.createLinearGradient(0,0,0,H);
-    g.addColorStop(0,`rgb(${c.t})`);g.addColorStop(.42,`rgb(${c.m})`);g.addColorStop(1,`rgb(${c.b})`);
-    cx.fillStyle=g;cx.fillRect(0,0,W,H);
-  }
-
-  /* Phase */
-  function toMin(s){const[h,m]=s.split(":").map(Number);return h*60+m;}
-  window._setPrayerMinutes=function(t){
-    window._pm={fajr:toMin(t.Fajr),sunrise:t.Sunrise?toMin(t.Sunrise):toMin(t.Fajr)+65,
-      maghrib:toMin(t.Maghrib),isha:toMin(t.Isha)};
-  };
-  function getPhase(){
-    const now=new Date(),nm=now.getHours()*60+now.getMinutes()+now.getSeconds()/60;
-    const p=window._pm||{fajr:300,sunrise:375,maghrib:1095,isha:1185};
-    if(nm>=p.isha||nm<p.fajr){
-      const dur=(1440-p.isha)+p.fajr,el=nm>=p.isha?nm-p.isha:(1440-p.isha)+nm;
-      return{ph:"night",t:Math.min(el/dur,1)};
-    }
-    if(nm>=p.fajr&&nm<p.sunrise)return{ph:"dawn",t:(nm-p.fajr)/(p.sunrise-p.fajr)};
-    if(nm>=p.maghrib&&nm<p.isha)return{ph:"sunset",t:(nm-p.maghrib)/(p.isha-p.maghrib)};
-    return{ph:"day",t:(nm-p.sunrise)/(p.maghrib-p.sunrise)};
-  }
-
-  let tick=0;
-  function draw(){
-    tick++;cx.clearRect(0,0,W,H);
-    const{ph,t}=getPhase();
-    drawBG(getColors(ph,t));
-
-    if(ph==="night"){
-      stars.forEach(s=>{
-        const tw=.5+.5*Math.sin(tick*s.ts+s.to);
-        cx.globalAlpha=s.op*tw;cx.fillStyle=`rgb(${s.col})`;
-        cx.beginPath();cx.arc(s.x,s.y,s.r,0,Math.PI*2);cx.fill();
-      });
-      cx.globalAlpha=1;drawMoon(1);
-      maybeShoot(tick*16.67);tickShs();drawShs();
-    }
-    if(ph==="dawn"){
-      const sa=Math.max(0,1-t*1.4);
-      stars.forEach(s=>{
-        const tw=.5+.5*Math.sin(tick*s.ts+s.to);
-        cx.globalAlpha=s.op*tw*sa;cx.fillStyle=`rgb(${s.col})`;
-        cx.beginPath();cx.arc(s.x,s.y,s.r,0,Math.PI*2);cx.fill();
-      });
-      cx.globalAlpha=1;drawMoon(Math.max(0,.55-t*1.2));
-      drawHorizon(255,150,70,t*.65);
-      if(t>.25) drawSun(W*.44,H*(.98-t*.72),22,"255,225,140","255,165,55",t*.72);
-      tickClouds();clouds.forEach(c=>drawCloud(c,255,Math.round(145+t*70),Math.round(95+t*75)));
-      if(t<.4){maybeShoot(tick*16.67);tickShs();drawShs();}
-    }
-    if(ph==="day"){
-      const ang=Math.PI+t*Math.PI;
-      const sx=W*.5+Math.cos(ang)*W*.38;
-      const sy=Math.max(H*.06,Math.min(H*.82,H*.5+Math.sin(ang)*H*.55));
-      drawSun(sx,sy,36,"255,250,210","255,235,130",.45);
-      tickClouds();clouds.forEach(c=>drawCloud(c,248,252,255));
-    }
-    if(ph==="sunset"){
-      drawHorizon(255,125,38,.44+t*.32);
-      const sx=W*.5+(1-t)*W*.12,sy=H*(.22+t*.68);
-      if(sy<H*.93)drawSun(sx,sy,34,"255,185,65","255,105,30",.55);
-      tickClouds();
-      clouds.forEach(c=>{
-        const r=Math.round(225+(1-t)*28),g=Math.round(98-t*65),b=Math.round(55+t*90);
-        drawCloud(c,r,g,b);
-      });
-      if(t>.65){
-        const sa=(t-.65)/.35*.45;
-        stars.forEach(s=>{
-          const tw=.5+.5*Math.sin(tick*s.ts+s.to);
-          cx.globalAlpha=s.op*tw*sa;cx.fillStyle=`rgb(${s.col})`;
-          cx.beginPath();cx.arc(s.x,s.y,s.r,0,Math.PI*2);cx.fill();
-        });
-      }
-    }
-    cx.globalAlpha=1;
-  }
-
-  function resize(){W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;genStars();genClouds();}
-  window.addEventListener("resize",resize);resize();
-  (function loop(){draw();requestAnimationFrame(loop);})();
+    function resize(){W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;genStars();genClouds();}
+    window.addEventListener("resize",resize);resize();
+    (function loop(){draw();requestAnimationFrame(loop);})();
+  }catch(e){console.warn("sky:",e);}
 })();
 
-
-/* ════════════════════════════════════════
-   GEOLOCATION  — Smart Cache 30 days
-════════════════════════════════════════ */
-const GeoCache=(()=>{
-  const K='userGeo',TTL=30*864e5;
-  const sc=(n,v,ms)=>{document.cookie=`${n}=${encodeURIComponent(v)};expires=${new Date(Date.now()+ms).toUTCString()};path=/;SameSite=Lax`;};
-  const gc=n=>{const m=document.cookie.split('; ').find(r=>r.startsWith(n+'='));return m?decodeURIComponent(m.split('=')[1]):null;};
-  const dc=n=>{document.cookie=`${n}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/`;};
-  function load(){
-    try{
-      const raw=gc(K)||localStorage.getItem(K);if(!raw)return null;
-      const d=JSON.parse(raw);if(!d?.lat||!d?.lon||!d?.ts)return null;
-      if(Date.now()-d.ts>TTL){dc(K);localStorage.removeItem(K);return null;}
-      return{lat:d.lat,lon:d.lon};
-    }catch{return null;}
-  }
-  function save(lat,lon){
-    const p=JSON.stringify({lat,lon,ts:Date.now()});
-    try{sc(K,p,TTL);}catch{}try{localStorage.setItem(K,p);}catch{}
-  }
-  function init(ok,fail){
-    const c=load();if(c){ok(c.lat,c.lon);return;}
-    if(!navigator.geolocation){fail('unsupported');return;}
-    navigator.geolocation.getCurrentPosition(
-      p=>{save(p.coords.latitude,p.coords.longitude);ok(p.coords.latitude,p.coords.longitude);},
-      e=>fail(e.code),{enableHighAccuracy:true,timeout:10000,maximumAge:0}
-    );
-  }
-  return{init};
+/* ═══════════════════════════════════════
+   GEOLOCATION
+═══════════════════════════════════════ */
+var GeoCache=(function(){
+  var K="userGeo",TTL=30*864e5;
+  function sc(n,v,ms){try{document.cookie=n+"="+encodeURIComponent(v)+";expires="+new Date(Date.now()+ms).toUTCString()+";path=/;SameSite=Lax";}catch(e){}}
+  function gc(n){var m=document.cookie.split("; ").find(function(r){return r.startsWith(n+"=");});return m?decodeURIComponent(m.split("=")[1]):null;}
+  function load(){try{var raw=gc(K)||localStorage.getItem(K);if(!raw)return null;var d=JSON.parse(raw);if(!d||!d.lat||!d.lon)return null;if(Date.now()-d.ts>TTL){localStorage.removeItem(K);return null;}return{lat:d.lat,lon:d.lon};}catch(e){return null;}}
+  function save(lat,lon){var p=JSON.stringify({lat:lat,lon:lon,ts:Date.now()});try{sc(K,p,TTL);}catch(e){}try{localStorage.setItem(K,p);}catch(e){}}
+  function init(ok,fail){var c=load();if(c){ok(c.lat,c.lon);return;}if(!navigator.geolocation){fail("unsupported");return;}navigator.geolocation.getCurrentPosition(function(p){save(p.coords.latitude,p.coords.longitude);ok(p.coords.latitude,p.coords.longitude);},function(e){fail(e.code);},{enableHighAccuracy:true,timeout:10000,maximumAge:0});}
+  return{init:init};
 })();
 
 GeoCache.init(
-  (lat,lon)=>{reverseGeocode(lat,lon);getPrayerTimes(lat,lon);},
-  r=>{document.getElementById('locationText').innerText=
-    r===1?'يرجى السماح بالوصول إلى موقعك':r==='unsupported'?'المتصفح لا يدعم تحديد الموقع':'تعذّر تحديد الموقع';}
+  function(lat,lon){reverseGeocode(lat,lon);getPrayerTimes(lat,lon);},
+  function(r){var el=document.getElementById("locationText");if(el)el.innerText=r===1?"يرجى السماح بالوصول إلى موقعك":r==="unsupported"?"المتصفح لا يدعم تحديد الموقع":"تعذّر تحديد الموقع";}
 );
 
 function reverseGeocode(lat,lon){
-  fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
-    .then(r=>r.json())
-    .then(d=>{document.getElementById('locationText').innerText=d.address.city||d.address.town||d.address.village||'غير معروف';})
-    .catch(()=>{document.getElementById('locationText').innerText='غير معروف';});
+  fetch("https://nominatim.openstreetmap.org/reverse?format=json&lat="+lat+"&lon="+lon)
+    .then(function(r){return r.json();})
+    .then(function(d){var el=document.getElementById("locationText");if(el)el.innerText=d.address.city||d.address.town||d.address.village||"غير معروف";})
+    .catch(function(){});
 }
 
-
-/* ════════════════════════════════════════
+/* ═══════════════════════════════════════
    PRAYER TIMES
-════════════════════════════════════════ */
-let cdInt,storedT=null;
-const PN={Fajr:'الفجر',Dhuhr:'الظهر',Asr:'العصر',Maghrib:'المغرب',Isha:'العشاء'};
-const PI={Fajr:'🌙',Dhuhr:'☀️',Asr:'🌤️',Maghrib:'🌅',Isha:'🌃'};
+═══════════════════════════════════════ */
+var cdInt,storedT=null;
+var PN={Fajr:"الفجر",Dhuhr:"الظهر",Asr:"العصر",Maghrib:"المغرب",Isha:"العشاء"};
+var PI={Fajr:"🌙",Dhuhr:"☀️",Asr:"🌤️",Maghrib:"🌅",Isha:"🌃"};
 
-/* Convert "HH:MM" 24h → "H:MM ص/م" 12h Arabic */
 function to12(hhmm){
-  const [h,m]=hhmm.split(":").map(Number);
-  const suffix = h<12 ? 'ص' : 'م';
-  const h12 = h===0 ? 12 : h>12 ? h-12 : h;
-  return `${h12}:${String(m).padStart(2,'0')} ${suffix}`;
+  var parts=hhmm.split(":");
+  var h=parseInt(parts[0]),m=parseInt(parts[1]);
+  var suffix=h<12?"ص":"م";
+  var h12=h===0?12:h>12?h-12:h;
+  return h12+":"+("0"+m).slice(-2)+" "+suffix;
 }
 
 function getPrayerTimes(lat,lon){
-  fetch(`https://api.aladhan.com/v1/timings?latitude=${lat}&longitude=${lon}&method=5`)
-    .then(r=>r.json()).then(d=>{
-      const t=d.data.timings;storedT=t;
+  fetch("https://api.aladhan.com/v1/timings?latitude="+lat+"&longitude="+lon+"&method=5")
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var t=d.data.timings;storedT=t;
       if(window._setPrayerMinutes)window._setPrayerMinutes(t);
       renderPrayers(t);calculateNextPrayer(t);
-    });
+    })
+    .catch(function(){});
 }
 
 function getActive(times){
-  const now=new Date(),nm=now.getHours()*60+now.getMinutes();
-  const keys=["Fajr","Dhuhr","Asr","Maghrib","Isha"];
-  let a=keys[keys.length-1];
-  keys.forEach(k=>{const[h,m]=times[k].split(":").map(Number);if(nm>=h*60+m)a=k;});
+  var now=new Date(),nm=now.getHours()*60+now.getMinutes();
+  var keys=["Fajr","Dhuhr","Asr","Maghrib","Isha"],a=keys[keys.length-1];
+  keys.forEach(function(k){var p=times[k].split(":");if(nm>=parseInt(p[0])*60+parseInt(p[1]))a=k;});
   return a;
 }
 
 function renderPrayers(times){
-  const act=getActive(times);
-  document.getElementById("prayers").innerHTML=
-    ["Fajr","Dhuhr","Asr","Maghrib","Isha"].map(k=>`
-      <div class="prayer-row ${k===act?'active':''}">
-        <div class="pname"><span class="pip"></span><span>${PI[k]}</span><span>${PN[k]}</span></div>
-        <span class="ptime">${to12(times[k])}</span>
-      </div>`).join('');
+  var act=getActive(times);
+  var el=document.getElementById("prayers");
+  if(!el)return;
+  el.innerHTML=["Fajr","Dhuhr","Asr","Maghrib","Isha"].map(function(k){
+    return'<div class="prayer-row '+(k===act?"active":"")+'">'
+      +'<div class="pname"><span class="pip"></span><span>'+PI[k]+'</span><span>'+PN[k]+'</span></div>'
+      +'<span class="ptime">'+to12(times[k])+'</span></div>';
+  }).join("");
 }
-setInterval(()=>{if(storedT)renderPrayers(storedT);},60000);
+setInterval(function(){if(storedT)renderPrayers(storedT);},60000);
 
 function calculateNextPrayer(times){
   if(cdInt)clearInterval(cdInt);
-  const keys=["Fajr","Dhuhr","Asr","Maghrib","Isha"];
+  var keys=["Fajr","Dhuhr","Asr","Maghrib","Isha"];
   function getNext(){
-    const now=new Date();
-    for(const p of keys){
-      const[h,m]=times[p].split(":");const pt=new Date();pt.setHours(h,m,0,0);
+    var now=new Date();
+    for(var i=0;i<keys.length;i++){
+      var p=keys[i],parts=times[p].split(":");
+      var pt=new Date();pt.setHours(parseInt(parts[0]),parseInt(parts[1]),0,0);
       if(pt>now)return{name:PN[p],time:pt};
     }
-    const[h,m]=times["Fajr"].split(":");const pt=new Date();pt.setDate(pt.getDate()+1);pt.setHours(h,m,0,0);
-    return{name:PN["Fajr"],time:pt};
+    var fp=times["Fajr"].split(":");var ft=new Date();ft.setDate(ft.getDate()+1);ft.setHours(parseInt(fp[0]),parseInt(fp[1]),0,0);
+    return{name:PN["Fajr"],time:ft};
   }
-  const{name,time:next}=getNext();
-  cdInt=setInterval(()=>{
-    const diff=next-new Date();
-    if(diff<=0){clearInterval(cdInt);document.getElementById("countdownBar").innerText="حان وقت الصلاة 🕌";return;}
-    const h=Math.floor(diff/3600000),m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000);
-    document.getElementById("countdownBar").innerText=`${name} — متبقي ${h}س ${m}د ${s}ث`;
+  var next=getNext();
+  cdInt=setInterval(function(){
+    var diff=next.time-new Date();
+    var el=document.getElementById("countdownBar");if(!el)return;
+    if(diff<=0){clearInterval(cdInt);el.innerText="حان وقت الصلاة 🕌";return;}
+    var h=Math.floor(diff/3600000),m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000);
+    el.innerText=next.name+" — متبقي "+h+"س "+m+"د "+s+"ث";
   },1000);
 }
 
-
-/* ════════════════════════════════════════
+/* ═══════════════════════════════════════
    QURAN PLAYER
-════════════════════════════════════════ */
-let curSurah=1;
-const aud=document.getElementById("audioPlayer");
-const playBtn=document.getElementById("playBtn");
-const surahSel=document.getElementById("surahSelect");
-const recSel=document.getElementById("reciterSelect");
-let surahNames={};
-const RNAMES={
-  'ar.alafasy':'مشاري العفاسي',
-  'ar.abdulbasitmurattal':'عبدالباسط عبدالصمد',
-  'ar.faresabbad':'فارس عباد',
-  'islam_sobhi':'إسلام صبحي'
-};
+═══════════════════════════════════════ */
+var curSurah=1,_restoreTime=true;
+var aud=document.getElementById("audioPlayer");
+var playBtn=document.getElementById("playBtn");
+var surahSel=document.getElementById("surahSelect");
+var recSel=document.getElementById("reciterSelect");
+var surahNames={};
 
-// Islam Sobhi uses mp3quran.net server (different URL pattern)
-function buildAudioUrl(reciter, surahNum){
-  if(reciter === 'islam_sobhi'){
-    const n = String(surahNum).padStart(3,'0');
-    return `https://server14.mp3quran.net/islam/Rewayat-Hafs-A-n-Assem/${n}.mp3`;
-  }
-  return `https://cdn.islamic.network/quran/audio-surah/128/${reciter}/${surahNum}.mp3`;
+var RNAMES={"ar.alafasy":"مشاري العفاسي","ar.abdulbasitmurattal":"عبدالباسط عبدالصمد","ar.faresabbad":"فارس عباد","islam_sobhi":"إسلام صبحي"};
+var ICON_PLAY='<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v14l11-7-11-7z"/></svg>';
+var ICON_PAUSE='<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+
+function setPlayIcon(playing){if(playBtn)playBtn.innerHTML=playing?ICON_PAUSE:ICON_PLAY;}
+
+function buildAudioUrl(reciter,num){
+  if(reciter==="islam_sobhi")return"https://server14.mp3quran.net/islam/Rewayat-Hafs-A-n-Assem/"+("00"+num).slice(-3)+".mp3";
+  return"https://cdn.islamic.network/quran/audio-surah/128/"+reciter+"/"+num+".mp3";
 }
 
-const ICON_PLAY  = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v14l11-7-11-7z"/></svg>`;
-const ICON_PAUSE = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
-function setPlayIcon(playing){ playBtn.innerHTML = playing ? ICON_PAUSE : ICON_PLAY; }
-let _restoreTime = true;
-
-fetch("https://api.alquran.cloud/v1/surah").then(r=>r.json()).then(d=>{
-  d.data.forEach(x=>{
-    surahNames[x.number]=x.name;
-    const o=document.createElement("option");o.value=x.number;o.textContent=x.name;surahSel.appendChild(o);
-  });
-  if(localStorage.getItem("lastSurah")) surahSel.value=localStorage.getItem("lastSurah");
-  if(localStorage.getItem("lastReciter")) recSel.value=localStorage.getItem("lastReciter");
-  // Sync curSurah to whatever is selected after the list loads
-  curSurah = parseInt(surahSel.value) || 1;
-  updateNP();
-});
-
 function updateNP(){
-  const name = surahNames[surahSel.value];
-  const recName = RNAMES[recSel.value]||recSel.value;
-  document.getElementById("npLabel").textContent = name ? `${name} — ${recName}` : 'اختر سورة للتشغيل';
+  var el=document.getElementById("npLabel");if(!el)return;
+  var name=surahNames[surahSel?surahSel.value:""];
+  el.textContent=name?(name+" — "+(RNAMES[recSel?recSel.value:""]||"")):"اختر سورة للتشغيل";
 }
 
 function loadSurah(clearTime){
-  if(clearTime) localStorage.removeItem("lastTime");
-  aud.src = buildAudioUrl(recSel.value, surahSel.value);
-  aud.load();
-  curSurah=parseInt(surahSel.value);
-  updateNP();
+  if(clearTime)try{localStorage.removeItem("lastTime");}catch(e){}
+  if(!aud||!surahSel||!recSel)return;
+  aud.src=buildAudioUrl(recSel.value,surahSel.value);
+  aud.load();curSurah=parseInt(surahSel.value);updateNP();
 }
 
-function togglePlay(){
-  if(!aud.src || aud.src===''){loadSurah(false);aud.play();setPlayIcon(true);return;}
-  if(aud.paused){aud.play();setPlayIcon(true);}
+window.togglePlay=function(){
+  if(!aud)return;
+  if(!aud.src||aud.src==="about:blank"||aud.src===location.href){loadSurah(false);}
+  if(aud.paused){aud.play().catch(function(){});setPlayIcon(true);}
   else{aud.pause();setPlayIcon(false);}
+};
+
+window.seekAudio=function(e){
+  if(!aud||!aud.duration)return;
+  var rect=e.currentTarget.getBoundingClientRect();
+  aud.currentTime=((e.clientX-rect.left)/rect.width)*aud.duration;
+};
+
+function fmtT(s){if(isNaN(s)||!isFinite(s))return"0:00";var m=Math.floor(s/60),sc=Math.floor(s%60);return m+":"+(sc<10?"0":"")+sc;}
+
+fetch("https://api.alquran.cloud/v1/surah")
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(!surahSel)return;
+    d.data.forEach(function(x){surahNames[x.number]=x.name;var o=document.createElement("option");o.value=x.number;o.textContent=x.name;surahSel.appendChild(o);});
+    try{if(localStorage.getItem("lastSurah"))surahSel.value=localStorage.getItem("lastSurah");if(recSel&&localStorage.getItem("lastReciter"))recSel.value=localStorage.getItem("lastReciter");}catch(e){}
+    curSurah=parseInt(surahSel.value)||1;updateNP();
+  })
+  .catch(function(){});
+
+if(aud){
+  aud.ontimeupdate=function(){
+    if(!aud.duration)return;
+    var pb=document.getElementById("progressBar");if(pb)pb.style.width=(aud.currentTime/aud.duration*100)+"%";
+    var ct=document.getElementById("currentTime");if(ct)ct.textContent=fmtT(aud.currentTime);
+    var dur=document.getElementById("duration");if(dur)dur.textContent=fmtT(aud.duration);
+    try{localStorage.setItem("lastTime",aud.currentTime);}catch(e){}
+  };
+  aud.addEventListener("loadedmetadata",function(){
+    if(!_restoreTime)return;
+    try{var t=parseFloat(localStorage.getItem("lastTime"));if(t&&!isNaN(t))aud.currentTime=t;}catch(e){}
+  });
+  aud.addEventListener("ended",function(){
+    if(curSurah<114){_restoreTime=false;curSurah++;if(surahSel)surahSel.value=curSurah;try{localStorage.setItem("lastSurah",curSurah);localStorage.removeItem("lastTime");}catch(e){}loadSurah(true);aud.addEventListener("canplay",function once(){aud.play().catch(function(){});aud.removeEventListener("canplay",once);});}
+  });
 }
 
-// In RTL layout ⏭ is visually on the LEFT = forward (next surah)
-//               ⏮ is visually on the RIGHT = back (prev surah)
-document.getElementById("nextBtn").onclick=()=>{
-  if(curSurah<114){
-    _restoreTime=false;
-    surahSel.value=++curSurah;
-    localStorage.setItem("lastSurah",curSurah);
-    loadSurah(true);
-    aud.addEventListener("canplay",function once(){aud.play();setPlayIcon(true);aud.removeEventListener("canplay",once);});
-  }
-};
-document.getElementById("prevBtn").onclick=()=>{
-  if(curSurah>1){
-    _restoreTime=false;
-    surahSel.value=--curSurah;
-    localStorage.setItem("lastSurah",curSurah);
-    loadSurah(true);
-    aud.addEventListener("canplay",function once(){aud.play();setPlayIcon(true);aud.removeEventListener("canplay",once);});
-  }
-};
+var nextBtn=document.getElementById("nextBtn");
+var prevBtn=document.getElementById("prevBtn");
+if(nextBtn)nextBtn.onclick=function(){if(curSurah<114){_restoreTime=false;curSurah++;if(surahSel)surahSel.value=curSurah;try{localStorage.setItem("lastSurah",curSurah);}catch(e){}loadSurah(true);aud.addEventListener("canplay",function once(){aud.play().catch(function(){});setPlayIcon(true);aud.removeEventListener("canplay",once);});}};
+if(prevBtn)prevBtn.onclick=function(){if(curSurah>1){_restoreTime=false;curSurah--;if(surahSel)surahSel.value=curSurah;try{localStorage.setItem("lastSurah",curSurah);}catch(e){}loadSurah(true);aud.addEventListener("canplay",function once(){aud.play().catch(function(){});setPlayIcon(true);aud.removeEventListener("canplay",once);});}};
+if(surahSel)surahSel.onchange=function(){_restoreTime=false;try{localStorage.setItem("lastSurah",surahSel.value);}catch(e){}loadSurah(true);aud.addEventListener("canplay",function once(){aud.play().catch(function(){});setPlayIcon(true);aud.removeEventListener("canplay",once);});};
+if(recSel)recSel.onchange=function(){_restoreTime=false;try{localStorage.setItem("lastReciter",recSel.value);}catch(e){}loadSurah(true);aud.addEventListener("canplay",function once(){aud.play().catch(function(){});setPlayIcon(true);aud.removeEventListener("canplay",once);});};
 
-surahSel.onchange=()=>{
-  _restoreTime=false;
-  localStorage.setItem("lastSurah",surahSel.value);
-  loadSurah(true);
-  aud.addEventListener("canplay",function once(){aud.play();setPlayIcon(true);aud.removeEventListener("canplay",once);});
-};
-recSel.onchange=()=>{
-  _restoreTime=false;
-  localStorage.setItem("lastReciter",recSel.value);
-  loadSurah(true);
-  aud.addEventListener("canplay",function once(){aud.play();setPlayIcon(true);aud.removeEventListener("canplay",once);});
-};
-
-// Auto-advance: always start next surah from the beginning
-aud.addEventListener("ended",()=>{
-  if(curSurah<114){
-    _restoreTime=false;
-    surahSel.value=++curSurah;
-    localStorage.setItem("lastSurah",curSurah);
-    localStorage.removeItem("lastTime");
-    loadSurah(true);
-    aud.addEventListener("canplay",function once(){aud.play();aud.removeEventListener("canplay",once);});
-  }
-});
-
-aud.ontimeupdate=function(){
-  if(!aud.duration)return;
-  document.getElementById("progressBar").style.width=(aud.currentTime/aud.duration*100)+"%";
-  document.getElementById("currentTime").textContent=fmt(aud.currentTime);
-  document.getElementById("duration").textContent=fmt(aud.duration);
-  localStorage.setItem("lastTime",aud.currentTime);
-};
-
-function seekAudio(e){
-  const rect=e.currentTarget.getBoundingClientRect();
-  if(aud.duration) aud.currentTime=((e.clientX-rect.left)/rect.width)*aud.duration;
-}
-function fmt(s){if(isNaN(s))return"0:00";const m=Math.floor(s/60),sec=Math.floor(s%60);return`${m}:${sec<10?'0':''}${sec}`;}
-
-// Restore saved position only on the very first load of the page
-aud.addEventListener("loadedmetadata",()=>{
-  if(!_restoreTime) return;
-  const t=parseFloat(localStorage.getItem("lastTime"));
-  if(t && !isNaN(t)) aud.currentTime=t;
-});
-
-
-/* ════════════════════════════════════════
-   HADITH — مدمج، تحميل فوري
-════════════════════════════════════════ */
-const HADITHS=[
-  {t:"إنما الأعمال بالنيات، وإنما لكل امرئ ما نوى.",s:"صحيح البخاري"},
-  {t:"المسلم من سلم المسلمون من لسانه ويده.",s:"صحيح البخاري"},
-  {t:"لا يؤمن أحدكم حتى يحب لأخيه ما يحب لنفسه.",s:"صحيح البخاري"},
-  {t:"من كان يؤمن بالله واليوم الآخر فليقل خيراً أو ليصمت.",s:"صحيح البخاري"},
-  {t:"أحب الأعمال إلى الله أدومها وإن قَلّ.",s:"صحيح البخاري"},
-  {t:"الدين النصيحة. قلنا: لمن؟ قال: لله ولكتابه ولرسوله ولأئمة المسلمين وعامتهم.",s:"صحيح مسلم"},
-  {t:"بُني الإسلام على خمس: شهادة أن لا إله إلا الله وأن محمداً رسول الله، وإقام الصلاة، وإيتاء الزكاة، والحج، وصوم رمضان.",s:"صحيح البخاري"},
-  {t:"من صام رمضان إيماناً واحتساباً غُفر له ما تقدم من ذنبه.",s:"صحيح البخاري"},
-  {t:"خيركم من تعلّم القرآن وعلّمه.",s:"صحيح البخاري"},
-  {t:"إن الله جميل يحب الجمال.",s:"صحيح مسلم"},
-  {t:"اتقِ الله حيثما كنت، وأتبع السيئة الحسنة تمحها، وخالق الناس بخلق حسن.",s:"سنن الترمذي"},
-  {t:"أقرب ما يكون العبد من ربه وهو ساجد، فأكثروا الدعاء.",s:"صحيح مسلم"},
-  {t:"الطهور شطر الإيمان، والحمد لله تملأ الميزان، وسبحان الله والحمد لله تملآن ما بين السماوات والأرض.",s:"صحيح مسلم"},
-  {t:"من نفّس عن مؤمن كربة من كرب الدنيا نفّس الله عنه كربة من كرب يوم القيامة.",s:"صحيح مسلم"},
-  {t:"تبسّمك في وجه أخيك صدقة.",s:"سنن الترمذي"},
-  {t:"خير الناس أنفعهم للناس.",s:"صحيح الجامع"},
-  {t:"لا تغضب. فردّد مراراً، قال: لا تغضب.",s:"صحيح البخاري"},
-  {t:"مثل المؤمنين في توادهم وتراحمهم وتعاطفهم مثل الجسد؛ إذا اشتكى منه عضو تداعى له سائر الجسد بالسهر والحمى.",s:"صحيح البخاري"},
-  {t:"ليس الغنى عن كثرة العَرَض، ولكن الغنى غنى النفس.",s:"صحيح البخاري"},
-  {t:"صلاة الجماعة أفضل من صلاة الفذّ بسبع وعشرين درجة.",s:"صحيح البخاري"},
-  {t:"من قال سبحان الله وبحمده في يوم مئة مرة حُطّت خطاياه وإن كانت مثل زبد البحر.",s:"صحيح البخاري"},
-  {t:"يقول الله تعالى: أنا عند ظن عبدي بي، وأنا معه إذا ذكرني.",s:"صحيح البخاري"},
-  {t:"الكلمة الطيبة صدقة.",s:"صحيح البخاري"},
-  {t:"من أحب أن يُبسط له في رزقه وينسأ له في أثره فليصل رحمه.",s:"صحيح البخاري"},
-  {t:"حُجبت النار بالشهوات، وحُجبت الجنة بالمكاره.",s:"صحيح البخاري"},
-  {t:"إن الله لا ينظر إلى صوركم وأموالكم، ولكن ينظر إلى قلوبكم وأعمالكم.",s:"صحيح مسلم"},
-  {t:"ما أصاب المسلم من نصب ولا وصب ولا همٍّ ولا حزن ولا أذى ولا غمٍّ حتى الشوكة يُشاكها إلا كفّر الله بها من خطاياه.",s:"صحيح البخاري"},
-  {t:"من قرأ آية الكرسي دبر كل صلاة مكتوبة لم يمنعه من دخول الجنة إلا أن يموت.",s:"النسائي — صحيح"},
-  {t:"إن الله وملائكته يصلون على الصف الأول.",s:"سنن ابن ماجه"},
-  {t:"ما من عبد مسلم يدعو لأخيه بظهر الغيب إلا قال الملك: آمين ولك بمثل.",s:"صحيح مسلم"},
-  {t:"إن مما أدرك الناس من كلام النبوة الأولى: إذا لم تستحِ فاصنع ما شئت.",s:"صحيح البخاري"},
-  {t:"أفضل الصيام بعد رمضان شهر الله المحرم.",s:"صحيح مسلم"},
-  {t:"رُفع القلم عن ثلاثة: عن النائم حتى يستيقظ، وعن الصغير حتى يحتلم، وعن المجنون حتى يعقل.",s:"سنن أبي داود"},
-  {t:"إن الله كتب الإحسان على كل شيء.",s:"صحيح مسلم"},
-  {t:"من كان يؤمن بالله واليوم الآخر فليكرم ضيفه.",s:"صحيح البخاري"},
-  {t:"لا يشكر الله من لا يشكر الناس.",s:"سنن أبي داود"},
-  {t:"المؤمن القوي خير وأحب إلى الله من المؤمن الضعيف، وفي كلٍّ خير.",s:"صحيح مسلم"},
-  {t:"اللهم إني أسألك الهدى والتقى والعفاف والغنى.",s:"صحيح مسلم"},
-  {t:"إن من أخلاق المؤمن قوة في دين، وحزماً في لين، وإيماناً في يقين.",s:"مسند الإمام أحمد"},
-  {t:"إن الرفق لا يكون في شيء إلا زانه، ولا يُنزع من شيء إلا شانه.",s:"صحيح مسلم"}
-];
-
+/* ═══════════════════════════════════════
+   HADITH
+═══════════════════════════════════════ */
 (function(){
-  const dayOfYear=Math.floor((new Date()-new Date(new Date().getFullYear(),0,0))/86400000);
-  let idx=parseInt(localStorage.getItem('hIdx')||dayOfYear%HADITHS.length);
+  var HADITHS=[
+    {t:"إنما الأعمال بالنيات، وإنما لكل امرئ ما نوى.",s:"صحيح البخاري"},
+    {t:"المسلم من سلم المسلمون من لسانه ويده.",s:"صحيح البخاري"},
+    {t:"لا يؤمن أحدكم حتى يحب لأخيه ما يحب لنفسه.",s:"صحيح البخاري"},
+    {t:"من كان يؤمن بالله واليوم الآخر فليقل خيراً أو ليصمت.",s:"صحيح البخاري"},
+    {t:"أحب الأعمال إلى الله أدومها وإن قَلّ.",s:"صحيح البخاري"},
+    {t:"الدين النصيحة، لله ولكتابه ولرسوله ولأئمة المسلمين وعامتهم.",s:"صحيح مسلم"},
+    {t:"بُني الإسلام على خمس: شهادة أن لا إله إلا الله وأن محمداً رسول الله، وإقام الصلاة، وإيتاء الزكاة، والحج، وصوم رمضان.",s:"صحيح البخاري"},
+    {t:"من صام رمضان إيماناً واحتساباً غُفر له ما تقدم من ذنبه.",s:"صحيح البخاري"},
+    {t:"خيركم من تعلّم القرآن وعلّمه.",s:"صحيح البخاري"},
+    {t:"إن الله جميل يحب الجمال.",s:"صحيح مسلم"},
+    {t:"اتقِ الله حيثما كنت، وأتبع السيئة الحسنة تمحها، وخالق الناس بخلق حسن.",s:"سنن الترمذي"},
+    {t:"أقرب ما يكون العبد من ربه وهو ساجد، فأكثروا الدعاء.",s:"صحيح مسلم"},
+    {t:"الطهور شطر الإيمان، والحمد لله تملأ الميزان.",s:"صحيح مسلم"},
+    {t:"من نفّس عن مؤمن كربة من كرب الدنيا نفّس الله عنه كربة من كرب يوم القيامة.",s:"صحيح مسلم"},
+    {t:"تبسّمك في وجه أخيك صدقة.",s:"سنن الترمذي"},
+    {t:"خير الناس أنفعهم للناس.",s:"صحيح الجامع"},
+    {t:"لا تغضب، ولا تغضب، ولا تغضب.",s:"صحيح البخاري"},
+    {t:"مثل المؤمنين في توادهم وتراحمهم وتعاطفهم مثل الجسد، إذا اشتكى منه عضو تداعى له سائر الجسد بالسهر والحمى.",s:"صحيح البخاري"},
+    {t:"ليس الغنى عن كثرة العَرَض، ولكن الغنى غنى النفس.",s:"صحيح البخاري"},
+    {t:"صلاة الجماعة أفضل من صلاة الفذّ بسبع وعشرين درجة.",s:"صحيح البخاري"},
+    {t:"من قال سبحان الله وبحمده في يوم مئة مرة حُطّت خطاياه وإن كانت مثل زبد البحر.",s:"صحيح البخاري"},
+    {t:"يقول الله تعالى: أنا عند ظن عبدي بي، وأنا معه إذا ذكرني.",s:"صحيح البخاري"},
+    {t:"الكلمة الطيبة صدقة.",s:"صحيح البخاري"},
+    {t:"من أحب أن يُبسط له في رزقه وينسأ له في أثره فليصل رحمه.",s:"صحيح البخاري"},
+    {t:"حُجبت النار بالشهوات، وحُجبت الجنة بالمكاره.",s:"صحيح البخاري"},
+    {t:"إن الله لا ينظر إلى صوركم وأموالكم، ولكن ينظر إلى قلوبكم وأعمالكم.",s:"صحيح مسلم"},
+    {t:"ما أصاب المسلم من نصب ولا وصب ولا هم ولا حزن ولا أذى ولا غم حتى الشوكة يشاكها إلا كفّر الله بها من خطاياه.",s:"صحيح البخاري"},
+    {t:"إن الله وملائكته يصلون على الصف الأول.",s:"سنن ابن ماجه"},
+    {t:"ما من عبد مسلم يدعو لأخيه بظهر الغيب إلا قال الملك آمين ولك بمثل.",s:"صحيح مسلم"},
+    {t:"إن الله لا يقبض العلم انتزاعاً، ولكن يقبض العلم بقبض العلماء.",s:"صحيح البخاري"},
+    {t:"إن من أخلاق المؤمن قوة في دين وحزم في لين وإيمان في يقين.",s:"مسند أحمد"},
+    {t:"إن الرفق لا يكون في شيء إلا زانه، ولا يُنزع من شيء إلا شانه.",s:"صحيح مسلم"},
+    {t:"أفضل الصيام بعد رمضان شهر الله المحرم.",s:"صحيح مسلم"},
+    {t:"لا يشكر الله من لا يشكر الناس.",s:"سنن أبي داود"},
+    {t:"المؤمن القوي خير وأحب إلى الله من المؤمن الضعيف، وفي كل خير.",s:"صحيح مسلم"},
+    {t:"اللهم إني أسألك الهدى والتقى والعفاف والغنى.",s:"صحيح مسلم"},
+    {t:"من كان يؤمن بالله واليوم الآخر فليكرم ضيفه.",s:"صحيح البخاري"},
+    {t:"إن الله كتب الإحسان على كل شيء.",s:"صحيح مسلم"},
+    {t:"كفى بالمرء إثماً أن يُضيّع من يقوت.",s:"سنن أبي داود"},
+    {t:"رُفع القلم عن ثلاثة: عن النائم حتى يستيقظ، وعن الصغير حتى يحتلم، وعن المجنون حتى يعقل.",s:"سنن أبي داود"}
+  ];
+  var dayOfYear=Math.floor((new Date()-new Date(new Date().getFullYear(),0,0))/86400000);
+  var idx;
+  try{idx=parseInt(localStorage.getItem("hIdx")||"");}catch(e){}
+  if(isNaN(idx)||idx===null||idx===undefined)idx=dayOfYear%HADITHS.length;
   function show(){
-    const h=HADITHS[idx];
-    document.getElementById('hadithText').textContent=h.t;
-    document.getElementById('hadithSource').textContent=h.s;
-    document.getElementById('hadithCounter').textContent=`${idx+1} / ${HADITHS.length}`;
-    localStorage.setItem('hIdx',idx);
+    var h=HADITHS[idx];
+    var ht=document.getElementById("hadithText"),hs=document.getElementById("hadithSource"),hc=document.getElementById("hadithCounter");
+    if(ht)ht.textContent=h.t;
+    if(hs)hs.textContent=h.s;
+    if(hc)hc.textContent=(idx+1)+" / "+HADITHS.length;
+    try{localStorage.setItem("hIdx",idx);}catch(e){}
   }
-  window.nextHadith=()=>{idx=(idx+1)%HADITHS.length;show();}
-  window.prevHadith=()=>{idx=(idx-1+HADITHS.length)%HADITHS.length;show();}
+  window.nextHadith=function(){idx=(idx+1)%HADITHS.length;show();};
+  window.prevHadith=function(){idx=(idx-1+HADITHS.length)%HADITHS.length;show();};
   show();
 })();
 
-/* ════════════════════════════════════════
+/* ═══════════════════════════════════════
    TASBEEH
-════════════════════════════════════════ */
-let tcnt=parseInt(localStorage.getItem("tasbeeh"))||0;
-document.getElementById("tasbeehCount").textContent=tcnt;
-const pulse=document.getElementById("pulseRing");
-const toast=document.getElementById("milestoneToast");
-const MS=[33,66,99,100,200,300,500,1000];
+═══════════════════════════════════════ */
+var tcnt=0;
+try{tcnt=parseInt(localStorage.getItem("tasbeeh"))||0;}catch(e){}
+var tcntEl=document.getElementById("tasbeehCount");
+var pulseEl=document.getElementById("pulseRing");
+var toastEl=document.getElementById("milestoneToast");
+if(tcntEl)tcntEl.textContent=tcnt;
+var MS=[33,66,99,100,200,300,500,1000];
 
-function tasbeehClick(){
-  tcnt++;localStorage.setItem("tasbeeh",tcnt);
-  document.getElementById("tasbeehCount").textContent=tcnt;
-  if(navigator.vibrate)navigator.vibrate(28);
-  pulse.classList.remove("pop");void pulse.offsetWidth;pulse.classList.add("pop");
-  if(MS.includes(tcnt)){
-    toast.textContent=`🎉 ${tcnt} تسبيحة!`;
-    toast.classList.remove("show");void toast.offsetWidth;toast.classList.add("show");
-  }
-}
-function resetTasbeeh(){tcnt=0;localStorage.setItem("tasbeeh",0);document.getElementById("tasbeehCount").textContent=0;}
+window.tasbeehClick=function(){
+  tcnt++;
+  try{localStorage.setItem("tasbeeh",tcnt);}catch(e){}
+  if(tcntEl)tcntEl.textContent=tcnt;
+  try{if(navigator.vibrate)navigator.vibrate(28);}catch(e){}
+  if(pulseEl){pulseEl.classList.remove("pop");void pulseEl.offsetWidth;pulseEl.classList.add("pop");}
+  if(MS.indexOf(tcnt)>-1&&toastEl){toastEl.textContent="🎉 "+tcnt+" تسبيحة!";toastEl.classList.remove("show");void toastEl.offsetWidth;toastEl.classList.add("show");}
+};
+window.resetTasbeeh=function(){tcnt=0;try{localStorage.setItem("tasbeeh",0);}catch(e){}if(tcntEl)tcntEl.textContent=0;};
 
-
-════════════════════════════════════════ */
+/* ═══════════════════════════════════════
+   FOCUS DETOX
+═══════════════════════════════════════ */
 (function(){
-  let focusSec=25*60, totalSec=25*60;
-  let running=false, interval=null;
-  let usageData=JSON.parse(localStorage.getItem('focusStats')||'{}');
-  let chartInst=null;
+  var focusSec=25*60,totalSec=25*60,running=false,focusInterval=null,chartInst=null;
+  var usageData={};
+  try{usageData=JSON.parse(localStorage.getItem("focusStats")||"{}");}catch(e){}
 
-  function todayKey(){const d=new Date();return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;}
-
-  function fmt(s){const m=Math.floor(s/60),sc=s%60;return `${m}:${sc<10?'0':''}${sc}`;}
+  function todayStr(){var d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();}
+  function fmtSec(s){var m=Math.floor(s/60),sc=s%60;return m+":"+(sc<10?"0":"")+sc;}
 
   function setDisplay(){
-    const el=document.getElementById('focusTimer');
-    el.textContent=fmt(focusSec);
-    el.classList.toggle('running',running);
+    var el=document.getElementById("focusTimer");if(!el)return;
+    el.textContent=fmtSec(focusSec);
+    el.className=running?"focus-timer running":"focus-timer";
   }
 
   window.setDur=function(mins,chip){
-    if(running) return;
-    document.querySelectorAll('.dur-chip').forEach(c=>c.classList.remove('active'));
-    chip.classList.add('active');
-    focusSec=totalSec=mins*60;
-    setDisplay();
+    if(running)return;
+    var chips=document.querySelectorAll(".dur-chip");
+    for(var i=0;i<chips.length;i++)chips[i].classList.remove("active");
+    chip.classList.add("active");
+    focusSec=totalSec=mins*60;setDisplay();
   };
 
   window.toggleFocus=function(){
+    var btn=document.getElementById("focusStartBtn");
     if(!running){
-      running=true;
-      document.getElementById('focusStartBtn').textContent='⏸ إيقاف';
-      interval=setInterval(()=>{
-        focusSec--;
-        saveUsage(1);
-        setDisplay();
-        renderStats();
+      running=true;if(btn)btn.textContent="⏸ إيقاف";
+      focusInterval=setInterval(function(){
+        focusSec--;saveUsage(1);setDisplay();renderStats();
         if(focusSec<=0){
-          clearInterval(interval);
-          running=false;
-          document.getElementById('focusStartBtn').textContent='▶ ابدأ';
-          if(navigator.vibrate) navigator.vibrate([200,100,200]);
-          alert('🔥 انتهت جلسة التركيز! أحسنت.');
-          focusSec=totalSec;
-          setDisplay();
+          clearInterval(focusInterval);running=false;
+          if(btn)btn.textContent="▶ ابدأ";
+          try{if(navigator.vibrate)navigator.vibrate([200,100,200]);}catch(e){}
+          alert("🔥 انتهت جلسة التركيز! أحسنت.");
+          focusSec=totalSec;setDisplay();
         }
       },1000);
-    } else {
-      clearInterval(interval);
-      running=false;
-      document.getElementById('focusStartBtn').textContent='▶ ابدأ';
+    }else{
+      clearInterval(focusInterval);running=false;if(btn)btn.textContent="▶ ابدأ";
     }
   };
 
   window.resetFocus=function(){
-    clearInterval(interval);
-    running=false;
-    focusSec=totalSec;
-    document.getElementById('focusStartBtn').textContent='▶ ابدأ';
+    clearInterval(focusInterval);running=false;focusSec=totalSec;
+    var btn=document.getElementById("focusStartBtn");if(btn)btn.textContent="▶ ابدأ";
     setDisplay();
   };
 
   function saveUsage(sec){
-    const t=todayKey();
-    if(!usageData[t]) usageData[t]=0;
-    usageData[t]+=sec;
-    localStorage.setItem('focusStats',JSON.stringify(usageData));
+    var t=todayStr();if(!usageData[t])usageData[t]=0;usageData[t]+=sec;
+    try{localStorage.setItem("focusStats",JSON.stringify(usageData));}catch(e){}
   }
 
   function renderStats(){
-    const now=new Date();
-    let week=0, month=0;
-    for(const d in usageData){
-      const diff=(now-new Date(d))/(864e5);
-      if(diff<=7)  week+=usageData[d];
-      if(diff<=30) month+=usageData[d];
-    }
-    document.getElementById('todayTime').textContent=Math.floor((usageData[todayKey()]||0)/60);
-    document.getElementById('weekTime').textContent=Math.floor(week/60);
-    // Streak
-    const days=Object.keys(usageData).sort();
-    let streak=0;
-    for(let i=days.length-1;i>=0;i--){
-      if(usageData[days[i]]>0) streak++; else break;
-    }
-    document.getElementById('streakVal').textContent=streak;
+    var now=new Date(),week=0;
+    for(var d in usageData){var diff=(now-new Date(d))/864e5;if(diff<=7)week+=usageData[d];}
+    var td=document.getElementById("todayTime");if(td)td.textContent=Math.floor((usageData[todayStr()]||0)/60);
+    var wd=document.getElementById("weekTime");if(wd)wd.textContent=Math.floor(week/60);
+    var days=Object.keys(usageData).sort(),streak=0;
+    for(var i=days.length-1;i>=0;i--){if(usageData[days[i]]>0)streak++;else break;}
+    var sv=document.getElementById("streakVal");if(sv)sv.textContent=streak;
     drawChart();
   }
 
   function drawChart(){
-    const labels=[], data=[], now=new Date();
-    for(let i=6;i>=0;i--){
-      const d=new Date(); d.setDate(now.getDate()-i);
-      const key=`${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
-      labels.push(['أح','إث','ث','أر','خ','ج','س'][d.getDay()]);
-      data.push(Math.floor((usageData[key]||0)/60));
+    if(typeof Chart==="undefined"){setTimeout(drawChart,800);return;}
+    var labels=[],data=[],now=new Date();
+    var days=["أح","إث","ث","أر","خ","ج","س"];
+    for(var i=6;i>=0;i--){
+      var d=new Date();d.setDate(now.getDate()-i);
+      var key=d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();
+      labels.push(days[d.getDay()]);data.push(Math.floor((usageData[key]||0)/60));
     }
-    const ctx=document.getElementById('weekChart').getContext('2d');
-    if(chartInst) chartInst.destroy();
-    chartInst=new Chart(ctx,{
-      type:'bar',
-      data:{
-        labels,
-        datasets:[{
-          label:'دقائق',
-          data,
-          backgroundColor:'rgba(240,192,64,.55)',
-          borderColor:'rgba(240,192,64,.9)',
-          borderWidth:2,
-          borderRadius:6,
-        }]
-      },
-      options:{
-        responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false}},
-        scales:{
-          x:{ticks:{color:'rgba(240,237,230,.6)',font:{family:'Cairo',size:11}},grid:{display:false},border:{display:false}},
-          y:{ticks:{color:'rgba(240,237,230,.6)',font:{family:'Cairo',size:10}},grid:{color:'rgba(255,255,255,.06)'},border:{display:false}}
-        }
-      }
-    });
+    var canvas=document.getElementById("weekChart");if(!canvas)return;
+    var ctx=canvas.getContext("2d");
+    if(chartInst){try{chartInst.destroy();}catch(e){}}
+    chartInst=new Chart(ctx,{type:"bar",data:{labels:labels,datasets:[{label:"دقائق",data:data,backgroundColor:"rgba(240,192,64,.55)",borderColor:"rgba(240,192,64,.9)",borderWidth:2,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"rgba(240,237,230,.6)",font:{family:"Cairo",size:11}},grid:{display:false},border:{display:false}},y:{ticks:{color:"rgba(240,237,230,.6)",font:{family:"Cairo",size:10}},grid:{color:"rgba(255,255,255,.06)"},border:{display:false}}}}});
   }
 
-  window.addEventListener('beforeunload', e=>{if(running) e.returnValue='';});
-  setDisplay();
-  renderStats();
+  window.addEventListener("beforeunload",function(e){if(running)e.returnValue="";});
+  setDisplay();renderStats();
 })();
 
-/* ════════════════════════════════════════
-   SERVICE WORKER — Offline Support
-════════════════════════════════════════ */
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+/* ═══════════════════════════════════════
+   SERVICE WORKER
+═══════════════════════════════════════ */
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("./sw.js").catch(function(){});
 }
 
+})(); // end main IIFE
+</script>
 </body>
-  </html>
+        </html>
