@@ -62,4 +62,4 @@ self.addEventListener('fetch', e => {
       }).catch(() => cached || new Response('Offline', { status: 503 }));
     })
   );
-});
+}); 
